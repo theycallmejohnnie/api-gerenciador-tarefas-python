@@ -1,38 +1,36 @@
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional
+
+class Tarefa(BaseModel):
+    nome_tarefa: str
+    descricao_tarefa: str
+    tarefa_concluida: bool = False
 
 app = FastAPI()
 
 lista_tarefas = {}
 
-@app.post("/adiciona")
-def post_tarefas(nome_tarefa: str, descricao_tarefa: str, tarefa_concluida: bool = False):
+@app.post("/tarefas")
+def post_tarefas(tarefa: Tarefa):
     id_tarefa = len(lista_tarefas) + 1
-    nova_tarefa = {
-        "nome_tarefa": nome_tarefa,
-        "descricao_tarefa": descricao_tarefa,
-        "tarefa_concluida": tarefa_concluida
-    }
-    lista_tarefas[id_tarefa] = nova_tarefa
-    return {"message": "Tarefa adicionada com sucesso!", "id": id_tarefa, "tarefa": nova_tarefa}
+    lista_tarefas[id_tarefa] = tarefa.dict()
+    return {"message": "Tarefa adicionada com sucesso!", "id": id_tarefa, "tarefa": tarefa}
 
 @app.get("/tarefas")
 def get_tarefas():
     return {"Lista de tarefas": lista_tarefas}
 
-@app.put("/atualiza")
-def put_tarefas(nome_tarefa: str):
-    for id_tarefa, tarefa in lista_tarefas.items():
-        if tarefa["nome_tarefa"] == nome_tarefa:
-            tarefa["tarefa_concluida"] = True
-            return {"message": "Tarefa atualizada com sucesso!", "id": id_tarefa, "tarefa": tarefa}
-    
+@app.put("/tarefas/{id_tarefa}")
+def put_tarefas(id_tarefa: int):
+    if id_tarefa in lista_tarefas:
+        lista_tarefas[id_tarefa]["tarefa_concluida"] = True
+        return {"message": "Tarefa atualizada com sucesso!", "id": id_tarefa, "tarefa": lista_tarefas[id_tarefa]}
     raise HTTPException(status_code=404, detail="Tarefa não encontrada na lista")
 
-@app.delete("/remove")
-def delete_tarefas(nome_tarefa: str):
-    for id_tarefa, tarefa in lista_tarefas.items():
-        if tarefa["nome_tarefa"] == nome_tarefa:
-            del lista_tarefas[id_tarefa]
-            return {"message": "Tarefa removida com sucesso!"}
-    
+@app.delete("/tarefas/{id_tarefa}")
+def delete_tarefas(id_tarefa: int):
+    if id_tarefa in lista_tarefas:
+        del lista_tarefas[id_tarefa]
+        return {"message": "Tarefa removida com sucesso!"}
     raise HTTPException(status_code=404, detail="Tarefa não encontrada na lista")

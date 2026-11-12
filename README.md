@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  Uma API RESTful simples, eficiente e direta ao ponto para gerenciamento de tarefas (To-Do List), desenvolvida em <strong>Python</strong> com <strong>FastAPI</strong>, validação de esquemas via <strong>Pydantic</strong> e gerenciada com <strong>Poetry</strong>.
+  Uma API RESTful simples, eficiente e direta ao ponto para gerenciamento de tarefas (To-Do List), desenvolvida em <strong>Python</strong> com <strong>FastAPI</strong>, validação de esquemas via <strong>Pydantic</strong>, autenticação <strong>HTTP Basic</strong> e gerenciada com <strong>Poetry</strong>.
 </p>
 
 <p align="center">
@@ -21,6 +21,7 @@
 - [Sobre o Projeto](#-sobre-o-projeto)
 - [Funcionalidades](#-funcionalidades)
 - [Modelo de Dados (Schema)](#-modelo-de-dados-schema)
+- [Autenticação](#-autenticação)
 - [Tecnologias Utilizadas](#-tecnologias-utilizadas)
 - [Como Executar o Projeto](#-como-executar-o-projeto)
   - [Pré-requisitos](#pré-requisitos)
@@ -44,8 +45,10 @@ O **Gerenciador de Tarefas** é uma API REST desenvolvida com o intuito de prati
 - Envio e validação de dados no corpo da requisição (**Request Body** em JSON);
 - Armazenamento em memória baseado em lista de objetos Python tipados (`list[Tarefa]`), mantendo as instâncias de `Tarefa` sem conversão desnecessária em dicionários;
 - Localização e manipulação de tarefas pelo campo `nome_tarefa` (com suporte tanto a **Path Parameters** quanto a **Query Strings**);
+- Paginação completa de resultados com parâmetros `page` e `limit`, além de ordenação flexível via `ordenar_por` (`nome_tarefa` ou `id`);
+- Camada de segurança com autenticação **HTTP Basic** (`HTTPBasic`) e verificação de credenciais em tempo constante com `secrets.compare_digest` para mitigar ataques de temporização (*timing attacks*);
 - Geração segura de identificadores sequenciais únicos via contador incremental, prevenindo colisões ou sobrescrita de dados após exclusões;
-- Respostas estruturadas e tratamento de erros customizados com **HTTPException** (ex: retorno `404 Not Found` para tarefas inexistentes);
+- Respostas estruturadas e tratamento de erros customizados com **HTTPException** (ex: retornos `401 Unauthorized` e `404 Not Found`);
 - Gerenciamento de dependências e ambientes virtuais com **Poetry**.
 
 ---
@@ -53,11 +56,12 @@ O **Gerenciador de Tarefas** é uma API REST desenvolvida com o intuito de prati
 ## ✨ Funcionalidades
 
 - [x] **Criar tarefa**: cadastra uma nova tarefa a partir de um corpo JSON validado (`nome_tarefa`, `descricao_tarefa` e `tarefa_concluida` com default `False`), armazenando a instância de `Tarefa` diretamente em uma lista em memória.
-- [x] **Listar tarefas**: retorna a lista de tarefas registradas em memória contendo os objetos `Tarefa`.
+- [x] **Listar tarefas com paginação e ordenação**: retorna as tarefas paginadas através dos parâmetros `page` e `limit`, com suporte a ordenação por nome ou ID (`ordenar_por`) e metadados detalhados (página atual, total de páginas, etc.).
+- [x] **Autenticação HTTP Basic**: proteção de todas as rotas com autenticação segura via `HTTPBasic` e credenciais validadas criptograficamente.
 - [x] **Atualizar status**: busca a tarefa pelo seu nome (`nome_tarefa`) e atualiza seu status para concluída (`True`).
 - [x] **Remover tarefa**: localiza a tarefa pelo seu nome (`nome_tarefa`) e realiza sua exclusão da lista.
-- [x] **Identificador único e seguro**: geração incremental de IDs que nunca se repetem nem sobrescrevem tarefas anteriores após remoções.
-- [x] **Validação e erros**: validação automática dos dados de entrada com Pydantic e lançamento de erro `404 Not Found` caso tente atualizar ou remover uma tarefa inexistente.
+- [x] **Identificador único e seguro**: geração incremental de IDs atribuídos diretamente a cada objeto `Tarefa`, evitando repetições ou sobrescritas após exclusões.
+- [x] **Validação e erros**: validação automática dos dados de entrada com Pydantic e lançamento de códigos de status semânticos (`401` para credenciais inválidas e `404` para tarefas não encontradas).
 
 ---
 
@@ -67,6 +71,7 @@ A entidade principal da aplicação é modelada através do Pydantic:
 
 ```python
 class Tarefa(BaseModel):
+    id: Optional[int] = None
     nome_tarefa: str
     descricao_tarefa: str
     tarefa_concluida: bool = False
@@ -74,9 +79,30 @@ class Tarefa(BaseModel):
 
 | Campo | Tipo | Obrigatório | Descrição |
 | :--- | :--- | :--- | :--- |
+| `id` | `int` | Não (gerado na criação) | Identificador numérico único da tarefa |
 | `nome_tarefa` | `str` | Sim | Nome ou título da tarefa |
 | `descricao_tarefa` | `str` | Sim | Detalhes ou descrição da tarefa |
 | `tarefa_concluida` | `bool` | Não (default: `false`) | Status de conclusão da tarefa |
+
+---
+
+## 🔐 Autenticação
+
+Todas as rotas da API são protegidas por autenticação **HTTP Basic**. É necessário enviar as credenciais no cabeçalho `Authorization` da requisição:
+
+| Chave | Valor Padrão |
+| :--- | :--- |
+| **Usuário** | `admin` |
+| **Senha** | `admin` |
+
+- **No Swagger UI (`/docs`):** Clique no botão verde **"Authorize"** no canto superior direito, insira o usuário `admin` e senha `admin`, e confirme.
+- **Em clientes HTTP (cURL, Insomnia, Postman):** Utilize a aba/tipo **Basic Auth** informando o usuário e a senha.
+- **Caso não autenticado:** A API responderá com status `401 Unauthorized`:
+  ```json
+  {
+    "detail": "Credenciais inválidas"
+  }
+  ```
 
 ---
 
@@ -123,10 +149,12 @@ Certifique-se de ter instalado em sua máquina:
 
 ## 📌 Rotas da API
 
+> 🔒 *Todas as rotas exigem autenticação HTTP Basic (`admin:admin`).*
+
 | Método | Endpoint | Descrição |
 | :--- | :--- | :--- |
 | `POST` | `/tarefas` | Cadastra uma nova tarefa na lista |
-| `GET` | `/tarefas` | Retorna todas as tarefas registradas |
+| `GET` | `/tarefas` | Retorna tarefas com suporte a paginação e ordenação |
 | `PUT` | `/tarefas/{nome_tarefa}` | Marca a tarefa indicada pelo nome como concluída |
 | `DELETE` | `/tarefas/{nome_tarefa}` | Deleta uma tarefa da lista pelo nome |
 
@@ -135,6 +163,7 @@ Certifique-se de ter instalado em sua máquina:
 ### 1. Adicionar Tarefa
 - **Método:** `POST`
 - **URL:** `/tarefas`
+- **Autenticação:** `Basic Auth` (`admin:admin`)
 - **Corpo da Requisição (Body JSON):**
   ```json
   {
@@ -151,6 +180,7 @@ Certifique-se de ter instalado em sua máquina:
   "message": "Tarefa adicionada com sucesso!",
   "id": 1,
   "tarefa": {
+    "id": 1,
     "nome_tarefa": "Estudar FastAPI",
     "descricao_tarefa": "Aprender rotas REST e modelos Pydantic",
     "tarefa_concluida": false
@@ -163,12 +193,27 @@ Certifique-se de ter instalado em sua máquina:
 ### 2. Listar Tarefas
 - **Método:** `GET`
 - **URL:** `/tarefas`
+- **Autenticação:** `Basic Auth` (`admin:admin`)
+- **Query Params:**
+  - `page` (inteiro, opcional, default: `1`, mínimo: `1`) - Número da página desejada
+  - `limit` (inteiro, opcional, default: `10`, mínimo: `1`, máximo: `100`) - Quantidade de tarefas por página
+  - `ordenar_por` (string, opcional, default: `"nome_tarefa"`) - Campo pelo qual a lista será ordenada (`"nome_tarefa"` ou `"id"`)
+
+**Exemplo de Requisição:**
+```text
+GET /tarefas?page=1&limit=10&ordenar_por=nome_tarefa
+```
 
 **Exemplo de Resposta (200 OK):**
 ```json
 {
+  "pagina_atual": 1,
+  "itens_por_pagina": 10,
+  "total_tarefas": 1,
+  "total_paginas": 1,
   "Lista de tarefas": [
     {
+      "id": 1,
       "nome_tarefa": "Estudar FastAPI",
       "descricao_tarefa": "Aprender rotas REST e modelos Pydantic",
       "tarefa_concluida": false
@@ -182,6 +227,7 @@ Certifique-se de ter instalado em sua máquina:
 ### 3. Concluir Tarefa
 - **Método:** `PUT`
 - **URL:** `/tarefas/{nome_tarefa}` *(também aceita via Query Param: `/tarefas?nome_tarefa=...`)*
+- **Autenticação:** `Basic Auth` (`admin:admin`)
 - **Parâmetro de Busca:**
   - `nome_tarefa` (string, obrigatório) - Nome da tarefa a ser concluída
 
@@ -195,6 +241,7 @@ PUT /tarefas/Estudar%20FastAPI
 {
   "message": "Tarefa atualizada com sucesso!",
   "tarefa": {
+    "id": 1,
     "nome_tarefa": "Estudar FastAPI",
     "descricao_tarefa": "Aprender rotas REST e modelos Pydantic",
     "tarefa_concluida": true
@@ -202,13 +249,14 @@ PUT /tarefas/Estudar%20FastAPI
 }
 ```
 
-*(Se a tarefa não existir, retornará status `404` com `{"detail": "Tarefa não encontrada na lista"}`).*
+*(Se a tarefa não existir, retornará status `404 Not Found` com `{"detail": "Tarefa não encontrada na lista"}`).*
 
 ---
 
 ### 4. Remover Tarefa
 - **Método:** `DELETE`
 - **URL:** `/tarefas/{nome_tarefa}` *(também aceita via Query Param: `/tarefas?nome_tarefa=...`)*
+- **Autenticação:** `Basic Auth` (`admin:admin`)
 - **Parâmetro de Busca:**
   - `nome_tarefa` (string, obrigatório) - Nome da tarefa a ser removida
 
@@ -224,7 +272,7 @@ DELETE /tarefas/Estudar%20FastAPI
 }
 ```
 
-*(Se a tarefa não existir, retornará status `404` com `{"detail": "Tarefa não encontrada na lista"}`).*
+*(Se a tarefa não existir, retornará status `404 Not Found` com `{"detail": "Tarefa não encontrada na lista"}`).*
 
 ---
 
@@ -234,6 +282,8 @@ O FastAPI gera automaticamente uma interface web interativa para testar todas as
 
 - **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+
+> 💡 *No Swagger UI, utilize o botão **Authorize** informando o usuário `admin` e a senha `admin` antes de testar as rotas.*
 
 ---
 

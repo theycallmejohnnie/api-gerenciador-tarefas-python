@@ -9,28 +9,35 @@ class Tarefa(BaseModel):
 
 app = FastAPI()
 
-lista_tarefas = {}
+lista_tarefas: list[Tarefa] = []
+id_contador = 0
 
 @app.post("/tarefas")
 def post_tarefas(tarefa: Tarefa):
-    id_tarefa = len(lista_tarefas) + 1
-    lista_tarefas[id_tarefa] = tarefa.dict()
+    global id_contador
+    id_contador += 1
+    id_tarefa = id_contador
+    lista_tarefas.append(tarefa)
     return {"message": "Tarefa adicionada com sucesso!", "id": id_tarefa, "tarefa": tarefa}
 
 @app.get("/tarefas")
 def get_tarefas():
     return {"Lista de tarefas": lista_tarefas}
 
-@app.put("/tarefas/{id_tarefa}")
-def put_tarefas(id_tarefa: int):
-    if id_tarefa in lista_tarefas:
-        lista_tarefas[id_tarefa]["tarefa_concluida"] = True
-        return {"message": "Tarefa atualizada com sucesso!", "id": id_tarefa, "tarefa": lista_tarefas[id_tarefa]}
+@app.put("/tarefas/{nome_tarefa}")
+@app.put("/tarefas")
+def put_tarefas(nome_tarefa: str):
+    for tarefa in lista_tarefas:
+        if tarefa.nome_tarefa == nome_tarefa:
+            tarefa.tarefa_concluida = True
+            return {"message": "Tarefa atualizada com sucesso!", "tarefa": tarefa}
     raise HTTPException(status_code=404, detail="Tarefa não encontrada na lista")
 
-@app.delete("/tarefas/{id_tarefa}")
-def delete_tarefas(id_tarefa: int):
-    if id_tarefa in lista_tarefas:
-        del lista_tarefas[id_tarefa]
-        return {"message": "Tarefa removida com sucesso!"}
+@app.delete("/tarefas/{nome_tarefa}")
+@app.delete("/tarefas")
+def delete_tarefas(nome_tarefa: str):
+    for i, tarefa in enumerate(lista_tarefas):
+        if tarefa.nome_tarefa == nome_tarefa:
+            del lista_tarefas[i]
+            return {"message": "Tarefa removida com sucesso!"}
     raise HTTPException(status_code=404, detail="Tarefa não encontrada na lista")

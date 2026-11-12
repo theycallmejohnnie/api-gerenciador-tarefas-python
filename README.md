@@ -20,6 +20,7 @@
 
 - [Sobre o Projeto](#-sobre-o-projeto)
 - [Funcionalidades](#-funcionalidades)
+- [Modelo de Dados (Schema)](#-modelo-de-dados-schema)
 - [Tecnologias Utilizadas](#-tecnologias-utilizadas)
 - [Como Executar o Projeto](#-como-executar-o-projeto)
   - [Pré-requisitos](#pré-requisitos)
@@ -38,22 +39,44 @@
 
 O **Gerenciador de Tarefas** é uma API REST desenvolvida com o intuito de praticar conceitos fundamentais do ecossistema Python moderno para desenvolvimento backend:
 - Criação e roteamento com **FastAPI** seguindo convenções e boas práticas **RESTful** (recursos no plural e verbos HTTP semânticos);
-- Modelagem, tipagem e validação de esquemas através do **Pydantic** (`BaseModel`);
-- Manipulação de métodos HTTP (**POST**, **GET**, **PUT**, **DELETE**);
+- Modelagem, tipagem estática e validação de dados através do **Pydantic** (`BaseModel`);
+- Manipulação completa dos principais métodos HTTP (**POST**, **GET**, **PUT**, **DELETE**);
 - Envio e validação de dados no corpo da requisição (**Request Body** em JSON);
-- Identificação precisa de recursos através de parâmetros de rota (**Path Parameters**);
-- Respostas e tratamento de erros customizados com **HTTPException** (ex: retorno `404 Not Found` para recursos inexistentes);
+- Armazenamento em memória baseado em lista de objetos Python tipados (`list[Tarefa]`), mantendo as instâncias de `Tarefa` sem conversão desnecessária em dicionários;
+- Localização e manipulação de tarefas pelo campo `nome_tarefa` (com suporte tanto a **Path Parameters** quanto a **Query Strings**);
+- Geração segura de identificadores sequenciais únicos via contador incremental, prevenindo colisões ou sobrescrita de dados após exclusões;
+- Respostas estruturadas e tratamento de erros customizados com **HTTPException** (ex: retorno `404 Not Found` para tarefas inexistentes);
 - Gerenciamento de dependências e ambientes virtuais com **Poetry**.
 
 ---
 
 ## ✨ Funcionalidades
 
-- [x] **Criar tarefa**: cadastra uma nova tarefa a partir de um corpo JSON validado (`nome_tarefa`, `descricao_tarefa` e `tarefa_concluida` com default `False`).
-- [x] **Listar tarefas**: retorna todas as tarefas registradas em memória com seus respectivos IDs.
-- [x] **Atualizar status**: busca a tarefa pelo seu ID (`/tarefas/{id_tarefa}`) e atualiza seu status para concluída (`True`).
-- [x] **Remover tarefa**: localiza a tarefa pelo seu ID (`/tarefas/{id_tarefa}`) e realiza a exclusão da lista.
-- [x] **Validação e erros**: validação automática de dados de entrada e lançamento de erro `404 Not Found` caso tente atualizar ou remover uma tarefa inexistente.
+- [x] **Criar tarefa**: cadastra uma nova tarefa a partir de um corpo JSON validado (`nome_tarefa`, `descricao_tarefa` e `tarefa_concluida` com default `False`), armazenando a instância de `Tarefa` diretamente em uma lista em memória.
+- [x] **Listar tarefas**: retorna a lista de tarefas registradas em memória contendo os objetos `Tarefa`.
+- [x] **Atualizar status**: busca a tarefa pelo seu nome (`nome_tarefa`) e atualiza seu status para concluída (`True`).
+- [x] **Remover tarefa**: localiza a tarefa pelo seu nome (`nome_tarefa`) e realiza sua exclusão da lista.
+- [x] **Identificador único e seguro**: geração incremental de IDs que nunca se repetem nem sobrescrevem tarefas anteriores após remoções.
+- [x] **Validação e erros**: validação automática dos dados de entrada com Pydantic e lançamento de erro `404 Not Found` caso tente atualizar ou remover uma tarefa inexistente.
+
+---
+
+## 📐 Modelo de Dados (Schema)
+
+A entidade principal da aplicação é modelada através do Pydantic:
+
+```python
+class Tarefa(BaseModel):
+    nome_tarefa: str
+    descricao_tarefa: str
+    tarefa_concluida: bool = False
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+| :--- | :--- | :--- | :--- |
+| `nome_tarefa` | `str` | Sim | Nome ou título da tarefa |
+| `descricao_tarefa` | `str` | Sim | Detalhes ou descrição da tarefa |
+| `tarefa_concluida` | `bool` | Não (default: `false`) | Status de conclusão da tarefa |
 
 ---
 
@@ -102,10 +125,10 @@ Certifique-se de ter instalado em sua máquina:
 
 | Método | Endpoint | Descrição |
 | :--- | :--- | :--- |
-| `POST` | `/tarefas` | Cadastra uma nova tarefa |
-| `GET` | `/tarefas` | Retorna todas as tarefas |
-| `PUT` | `/tarefas/{id_tarefa}` | Marca a tarefa indicada pelo ID como concluída |
-| `DELETE` | `/tarefas/{id_tarefa}` | Deleta uma tarefa da lista pelo ID |
+| `POST` | `/tarefas` | Cadastra uma nova tarefa na lista |
+| `GET` | `/tarefas` | Retorna todas as tarefas registradas |
+| `PUT` | `/tarefas/{nome_tarefa}` | Marca a tarefa indicada pelo nome como concluída |
+| `DELETE` | `/tarefas/{nome_tarefa}` | Deleta uma tarefa da lista pelo nome |
 
 ---
 
@@ -144,13 +167,13 @@ Certifique-se de ter instalado em sua máquina:
 **Exemplo de Resposta (200 OK):**
 ```json
 {
-  "Lista de tarefas": {
-    "1": {
+  "Lista de tarefas": [
+    {
       "nome_tarefa": "Estudar FastAPI",
       "descricao_tarefa": "Aprender rotas REST e modelos Pydantic",
       "tarefa_concluida": false
     }
-  }
+  ]
 }
 ```
 
@@ -158,20 +181,19 @@ Certifique-se de ter instalado em sua máquina:
 
 ### 3. Concluir Tarefa
 - **Método:** `PUT`
-- **URL:** `/tarefas/{id_tarefa}`
-- **Parâmetro de Rota (Path Param):**
-  - `id_tarefa` (inteiro, obrigatório) - ID da tarefa a ser concluída
+- **URL:** `/tarefas/{nome_tarefa}` *(também aceita via Query Param: `/tarefas?nome_tarefa=...`)*
+- **Parâmetro de Busca:**
+  - `nome_tarefa` (string, obrigatório) - Nome da tarefa a ser concluída
 
 **Exemplo de Requisição:**
 ```text
-PUT /tarefas/1
+PUT /tarefas/Estudar%20FastAPI
 ```
 
 **Exemplo de Resposta (200 OK):**
 ```json
 {
   "message": "Tarefa atualizada com sucesso!",
-  "id": 1,
   "tarefa": {
     "nome_tarefa": "Estudar FastAPI",
     "descricao_tarefa": "Aprender rotas REST e modelos Pydantic",
@@ -186,13 +208,13 @@ PUT /tarefas/1
 
 ### 4. Remover Tarefa
 - **Método:** `DELETE`
-- **URL:** `/tarefas/{id_tarefa}`
-- **Parâmetro de Rota (Path Param):**
-  - `id_tarefa` (inteiro, obrigatório) - ID da tarefa a ser removida
+- **URL:** `/tarefas/{nome_tarefa}` *(também aceita via Query Param: `/tarefas?nome_tarefa=...`)*
+- **Parâmetro de Busca:**
+  - `nome_tarefa` (string, obrigatório) - Nome da tarefa a ser removida
 
 **Exemplo de Requisição:**
 ```text
-DELETE /tarefas/1
+DELETE /tarefas/Estudar%20FastAPI
 ```
 
 **Exemplo de Resposta (200 OK):**

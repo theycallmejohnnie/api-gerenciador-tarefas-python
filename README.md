@@ -45,7 +45,7 @@ O **Gerenciador de Tarefas** é uma API REST desenvolvida com o intuito de prati
 - Envio e validação de dados no corpo da requisição (**Request Body** em JSON);
 - Armazenamento em memória baseado em lista de objetos Python tipados (`list[Tarefa]`), mantendo as instâncias de `Tarefa` sem conversão desnecessária em dicionários;
 - Localização e manipulação de tarefas pelo campo `nome_tarefa` (com suporte tanto a **Path Parameters** quanto a **Query Strings**);
-- Paginação completa de resultados com parâmetros `page` e `limit`, além de ordenação flexível via `ordenar_por` (`nome_tarefa` ou `id`);
+- Paginação completa de resultados com parâmetros `page` e `size` (ou `limit`), além de ordenação flexível aplicada antes de paginar via `order_by` (`nome`, `descricao` ou `id`);
 - Camada de segurança com autenticação **HTTP Basic** (`HTTPBasic`) e verificação de credenciais em tempo constante com `secrets.compare_digest` para mitigar ataques de temporização (*timing attacks*);
 - Geração segura de identificadores sequenciais únicos via contador incremental, prevenindo colisões ou sobrescrita de dados após exclusões;
 - Respostas estruturadas e tratamento de erros customizados com **HTTPException** (ex: retornos `401 Unauthorized` e `404 Not Found`);
@@ -56,7 +56,7 @@ O **Gerenciador de Tarefas** é uma API REST desenvolvida com o intuito de prati
 ## ✨ Funcionalidades
 
 - [x] **Criar tarefa**: cadastra uma nova tarefa a partir de um corpo JSON validado (`nome_tarefa`, `descricao_tarefa` e `tarefa_concluida` com default `False`), armazenando a instância de `Tarefa` diretamente em uma lista em memória.
-- [x] **Listar tarefas com paginação e ordenação**: retorna as tarefas paginadas através dos parâmetros `page` e `limit`, com suporte a ordenação por nome ou ID (`ordenar_por`) e metadados detalhados (página atual, total de páginas, etc.).
+- [x] **Listar tarefas com paginação e ordenação**: retorna as tarefas paginadas (`page` e `size`/`limit`), com suporte a ordenação por campos como nome, descrição ou ID (`order_by`), aplicada antes da paginação.
 - [x] **Autenticação HTTP Basic**: proteção de todas as rotas com autenticação segura via `HTTPBasic` e credenciais validadas criptograficamente.
 - [x] **Atualizar status**: busca a tarefa pelo seu nome (`nome_tarefa`) e atualiza seu status para concluída (`True`).
 - [x] **Remover tarefa**: localiza a tarefa pelo seu nome (`nome_tarefa`) e realiza sua exclusão da lista.
@@ -196,12 +196,12 @@ Certifique-se de ter instalado em sua máquina:
 - **Autenticação:** `Basic Auth` (`admin:admin`)
 - **Query Params:**
   - `page` (inteiro, opcional, default: `1`, mínimo: `1`) - Número da página desejada
-  - `limit` (inteiro, opcional, default: `10`, mínimo: `1`, máximo: `100`) - Quantidade de tarefas por página
-  - `ordenar_por` (string, opcional, default: `"nome_tarefa"`) - Campo pelo qual a lista será ordenada (`"nome_tarefa"` ou `"id"`)
+  - `size` ou `limit` (inteiro, opcional, default: `10`, mínimo: `1`, máximo: `100`) - Quantidade de tarefas por página
+  - `order_by` (string, opcional) - Campo para ordenação: `'nome'`, `'descricao'` ou `'id'` (a ordenação é aplicada antes da paginação)
 
 **Exemplo de Requisição:**
 ```text
-GET /tarefas?page=1&limit=10&ordenar_por=nome_tarefa
+GET /tarefas?page=1&size=10&order_by=nome
 ```
 
 **Exemplo de Resposta (200 OK):**

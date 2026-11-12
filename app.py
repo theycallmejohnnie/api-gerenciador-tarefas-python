@@ -40,23 +40,39 @@ def post_tarefas(tarefa: Tarefa, usuario: str = Depends(verificar_usuario)):
 @app.get("/tarefas")
 def get_tarefas(
     page: int = Query(default=1, ge=1, description="Número da página"),
-    limit: int = Query(default=10, ge=1, le=100, description="Quantidade de tarefas por página"),
-    ordenar_por: str = Query(default="nome_tarefa", description="Campo para ordenação ('nome_tarefa' ou 'id')"),
+    size: int = Query(default=10, ge=1, le=100, description="Quantidade de tarefas por página"),
+    limit: Optional[int] = Query(default=None, ge=1, le=100, description="Alias para size"),
+    order_by: Optional[str] = Query(default=None, description="Campo para ordenação ('nome', 'descricao', 'id')"),
     usuario: str = Depends(verificar_usuario)
 ):
-    if ordenar_por == "id":
-        tarefas_ordenadas = sorted(lista_tarefas, key=lambda x: x.id or 0)
+    # Aplica a ordenação antes da paginação
+    if order_by:
+        campo = order_by.lower()
+        if campo in ("nome", "nome_tarefa"):
+            tarefas_ordenadas = sorted(lista_tarefas, key=lambda x: x.nome_tarefa.lower())
+        elif campo in ("descricao", "descricao_tarefa"):
+            tarefas_ordenadas = sorted(lista_tarefas, key=lambda x: x.descricao_tarefa.lower())
+        elif campo == "id":
+            tarefas_ordenadas = sorted(lista_tarefas, key=lambda x: x.id or 0)
+        elif campo in ("concluida", "tarefa_concluida", "status"):
+            tarefas_ordenadas = sorted(lista_tarefas, key=lambda x: x.tarefa_concluida)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Campo de ordenação '{order_by}' inválido. Escolha entre: 'nome', 'descricao' ou 'id'."
+            )
     else:
-        tarefas_ordenadas = sorted(lista_tarefas, key=lambda x: x.nome_tarefa)
+        tarefas_ordenadas = lista_tarefas
 
-    total_tarefas = len(lista_tarefas)
-    total_paginas = math.ceil(total_tarefas / limit) if total_tarefas > 0 else 1
-    start = (page - 1) * limit
-    end = start + limit
-    
+    limite = limit if limit is not None else size
+    total_tarefas = len(tarefas_ordenadas)
+    total_paginas = math.ceil(total_tarefas / limite) if total_tarefas > 0 else 1
+    start = (page - 1) * limite
+    end = start + limite
+
     return {
         "pagina_atual": page,
-        "itens_por_pagina": limit,
+        "itens_por_pagina": limite,
         "total_tarefas": total_tarefas,
         "total_paginas": total_paginas,
         "Lista de tarefas": tarefas_ordenadas[start:end],
